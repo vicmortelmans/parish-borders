@@ -1,0 +1,39 @@
+# This file contains metadata for your plugin. Since 
+# version 2.0 of QGIS this is the proper way to supply 
+# information about a plugin. The old method of 
+# embedding metadata in __init__.py will 
+# is no longer supported since version 2.0.
+
+# This file should be included when you package your plugin.# Mandatory items:
+
+[general]
+name=Parishes
+qgisMinimumVersion=2.0
+description=Generate parish borders based on address ranges
+version=0.1
+author=Vic Mortelmans
+email=vicmortelmans@gmail.com
+
+about=Based on a vector layer that contains all physicall addresses in a region and a table layer (csv) that contains address ranges with the parish they belong to as an attribute, a new layer is generated that contains the parish borders.
+
+tracker=https://github.com/vicmortelmans/parish-borders/issues/new
+repository=https://github.com/vicmortelmans/parish-borders
+# End of mandatory metadata
+
+# Recommended items:
+
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=
+
+homepage=
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
