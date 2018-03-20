@@ -22,7 +22,7 @@
 """
 from PyQt4.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, QVariant
 from PyQt4.QtGui import QAction, QIcon
-from qgis.core import QgsMapLayer, QgsExpression, QgsFeatureRequest, QgsField
+from qgis.core import QgsMapLayer, QgsExpression, QgsFeatureRequest, QgsField, QgsVectorLayer, QgsMapLayerRegistry
 # Initialize Qt resources from file resources.py
 import resources
 # Import the code for the dialog
@@ -32,6 +32,8 @@ import re
 import sys
 import csv
 import datetime
+from tqdm import tqdm
+import processing
 
 
 class Parishes:
@@ -315,7 +317,7 @@ class Parishes:
         # fill in the field city_street
         all_addresses = address_layer.getFeatures()
         print "Fill in 'city_strt'"
-        for address in all_addresses:
+        for address in tqdm(all_addresses):
             address['city_strt'] = address['GEMEENTE'] + "_" + address['STRAATNM']
             address_layer.updateFeature(address)
         address_layer.commitChanges()
@@ -326,14 +328,12 @@ class Parishes:
 
         # iterate per group of city_street
         address_layer.startEditing()
-        address_count = address_layer.featureCount()
-        addresses_done = 0
-        for city_street in unique_city_street_values:
+        print "Starting iteration streets"
+        for city_street in tqdm(unique_city_street_values):
             addresses = self.get_addresses(city_street, address_layer)
             city, street = city_street.split('_', 1)
             request = self.get_matching_ranges_request(city, street, parishes_table)
             for address in addresses:
-                addresses_done += 1
                 number = self.get_number_as_float(address)
                 parish = ''
                 any_ranges = False
@@ -364,7 +364,6 @@ class Parishes:
                     # success!
                     address['parish'] = parish
                 address_layer.updateFeature(address)
-            print "{}%".format(int(100 * addresses_done / address_count))
         result = address_layer.commitChanges()
         if result:
             print "Done editing"
@@ -398,5 +397,30 @@ class Parishes:
             layer_name_table = self.dlg.comboBox_table.currentText()
             layer_vector = layer_dict_vector[layer_name_vector]
             layer_table = layer_dict_table[layer_name_table]
+            print "Number of addresses in vector layer: {}".format(layer_vector.featureCount())
             self.assign_parish_to_addresses(layer_vector, layer_table)
+            # Select the features with valid parish field (parish ~ '^[^_]+$')
+            layer_vector.selectByExpression("parish ~ '^[^_]+$'", QgsVectorLayer.SetSelection)
+            print "Number of addresses in vector layer with valid parish assignment: {}".format(layer_vector.selectedFeatureCount())
+            # Create a memory layer for storing the selected features
+            selected_features = layer_vector.selectedFeatures()  # TODO here may be a chance to limit the number of attributes
+            layer_attributes = layer_vector.dataProvider().fields().toList()
+            layer_selected = QgsVectorLayer("Point", "Layer_Selected", "memory")  # TODO may need to provide CRS after Point
+            layer_selected.dataProvider().addAttributes(layer_attributes)
+            layer_selected.updateFields()
+            layer_selected.dataProvider().addFeatures(selected_features)
+            QgsMapLayerRegistry.instance().addMapLayer(layer_selected)
+            print "Valid addresses copied to memory layer OK"
+            # Get the extent of the selected features as input for further processing
+            extent = layer_selected.extent()
+            xmin = extent.xMinimum()
+            xmax = extent.xMaximum()
+            ymin = extent.yMinimum()
+            ymax = extent.yMaximum()
+            extent_parameter = "%f,%f,%f,%f" % (xmin, xmax, ymin, ymax)
+            # Create the voronoi polygons
+            layer_voronoi = processing.runalg("grass:v.voronoi", layer_selected, False, False, extent_parameter, -1, 0.0001, 0, None)
+            print "Voronoi polygons OK"
+            pass
+
 
